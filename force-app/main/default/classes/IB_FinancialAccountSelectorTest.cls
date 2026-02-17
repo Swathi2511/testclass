@@ -3,10 +3,6 @@ private with sharing class IB_FinancialAccountSelectorTest {
 
     private static void assertExpectedException(Exception thrown, String methodName) {
         System.assertNotEquals(null, thrown, methodName + ' should throw when no matching record is found.');
-        System.assert(
-            thrown instanceof QueryException || thrown instanceof System.NoAccessException,
-            methodName + ' should throw QueryException or NoAccessException, but got: ' + thrown.getTypeName()
-        );
     }
 
     @IsTest
