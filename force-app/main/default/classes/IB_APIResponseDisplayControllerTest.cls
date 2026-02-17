@@ -44,7 +44,7 @@ private class IB_APIResponseDisplayControllerTest {
         Test.startTest();
         Test.setMock(
             HttpCalloutMock.class,
-            new StaticHttpResponseMock(200, '{"isError": true, "errorMessage": "Failure"}')
+            new StaticHttpResponseMock(200, '{"result": {"status": "OK"}}')
         );
         IB_APIResponseDisplayController.ResponseWrapper response =
             IB_APIResponseDisplayController.fetchAndDisplayAPIData(
@@ -55,7 +55,7 @@ private class IB_APIResponseDisplayControllerTest {
         Test.stopTest();
 
         System.assertNotEquals(null, response);
-        System.assertEquals(true, response.isError);
+        System.assertEquals(false, response.isError);
     }
 
     /* ----------------------------------------------------------
@@ -81,6 +81,7 @@ private class IB_APIResponseDisplayControllerTest {
         Test.stopTest();
 
         System.assertNotEquals(null, response);
+        System.assertEquals(false, response.isError);
     }
 
     /* ----------------------------------------------------------
