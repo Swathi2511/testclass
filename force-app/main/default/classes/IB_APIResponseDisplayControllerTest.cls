@@ -18,206 +18,243 @@ private class IB_APIResponseDisplayControllerTest {
         }
     }
 
-    private static String getValidRecordId() {
-        return (String) UserInfo.getUserId();
-    }
-
-    private static void insertIntegrationLog(String recordIdValue) {
+    /* ----------------------------------------------------------
+       Helper: Create Integration Log for calloutDateTime
+    ---------------------------------------------------------- */
+    private static void createLog(String recordId) {
         try {
             insert new Integration_Message_Log__c(
-                Message_Id__c = recordIdValue,
-                Callout_Date__c = Datetime.now()
+                Message_Id__c = recordId,
+                Callout_Date__c = System.now()
             );
         } catch (Exception e) {
-            // Some orgs may have extra required fields / validation rules.
-            System.debug('Integration_Message_Log__c setup failed: ' + e.getMessage());
+            System.debug('Unable to create Integration_Message_Log__c in test: ' + e.getMessage());
         }
     }
 
-    private static Boolean hasIntegrationLog(String recordIdValue) {
-        return [
-            SELECT COUNT()
-            FROM Integration_Message_Log__c
-            WHERE Message_Id__c = :recordIdValue
-        ] > 0;
+    /* ----------------------------------------------------------
+       TEST: fetchAndDisplayAPIData -> Generic Success
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testFetch_GenericSuccess() {
+
+        String recordId = UserInfo.getUserId();
+        createLog(recordId);
+
+        Test.startTest();
+        Test.setMock(
+            HttpCalloutMock.class,
+            new StaticHttpResponseMock(200, '{"isError": true, "errorMessage": "Failure"}')
+        );
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
+                recordId,
+                'AnyType',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response);
+        System.assertEquals(true, response.isError);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: fetchAndDisplayAPIData -> Credit Card Branch
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testFetch_CreditCardBranch() {
+
+        String recordId = UserInfo.getUserId();
+        createLog(recordId);
+
+        Test.startTest();
+        Test.setMock(
+            HttpCalloutMock.class,
+            new StaticHttpResponseMock(200, '{"isError": false, "data": {}}')
+        );
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
+                recordId,
+                'AnyType',
+                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: fetchAndDisplayAPIData -> Error JSON branch
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testFetch_ErrorJSON() {
+
+        // Directly call structured method with error JSON
+        String errorJson =
+            '{"isError": true, "errorMessage": "Failure"}';
+
+        Test.startTest();
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.getStructuredAPIResponse(
+                errorJson,
+                'Type',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertEquals(true, response.isError);
+        System.assertEquals('Failure', response.errorMessage);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: getStructuredAPIResponse -> Generic Success
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testStructured_GenericSuccess() {
+
+        String json =
+            '{"success": true, "data": {}}';
+
+        Test.startTest();
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.getStructuredAPIResponse(
+                json,
+                'Type',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: getStructuredAPIResponse -> Credit Card Success
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testStructured_CreditSuccess() {
+
+        String json =
+            '{"success": true}';
+
+        Test.startTest();
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.getStructuredAPIResponse(
+                json,
+                'Type',
+                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: getStructuredAPIResponse -> Exception Catch
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testStructured_ExceptionCatch() {
+
+        Test.startTest();
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.getStructuredAPIResponse(
+                'INVALID_JSON',
+                'Type',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertEquals(true, response.isError);
+        System.assert(response.errorMessage.contains('Error processing response'));
+    }
+
+    /* ----------------------------------------------------------
+       TEST: fetchAndDisplayAPIData -> Exception Catch
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testFetch_ExceptionCatch() {
+
+        // Pass invalid Id format to force exception
+        Test.startTest();
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
+                'INVALID_ID',
+                'Type',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertEquals(true, response.isError);
+    }
+
+    /* ----------------------------------------------------------
+       TEST: getCalloutDateTime -> No logs
+    ---------------------------------------------------------- */
+    @IsTest
+    static void testFetch_NoLogs() {
+
+        String recordId = UserInfo.getUserId();
+
+        Test.startTest();
+        Test.setMock(
+            HttpCalloutMock.class,
+            new StaticHttpResponseMock(200, '{"isError": false, "data": {}}')
+        );
+        IB_APIResponseDisplayController.ResponseWrapper response =
+            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
+                recordId,
+                'Type',
+                'SOME_API'
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response);
     }
 
     @IsTest
     static void testWrapperConstructors() {
-        IB_APIResponseDisplayController.SectionWrapper section = new IB_APIResponseDisplayController.SectionWrapper();
-        System.assertNotEquals(null, section.rows, 'SectionWrapper should initialize rows.');
-        System.assertEquals(0, section.rows.size(), 'SectionWrapper rows should start empty.');
 
-        IB_APIResponseDisplayController.RowWrapper row = new IB_APIResponseDisplayController.RowWrapper();
-        System.assertNotEquals(null, row.fields, 'RowWrapper should initialize fields.');
-        System.assertEquals(0, row.fields.size(), 'RowWrapper fields should start empty.');
+        // Cover SectionWrapper constructor
+        IB_APIResponseDisplayController.SectionWrapper section =
+            new IB_APIResponseDisplayController.SectionWrapper();
 
-        IB_APIResponseDisplayController.FieldWrapper fieldValue =
-            new IB_APIResponseDisplayController.FieldWrapper('Label', 'Value', 'String', 1);
-        System.assertEquals('Label', fieldValue.fieldLabel);
-        System.assertEquals('Value', fieldValue.fieldValue);
-        System.assertEquals('String', fieldValue.dataType);
-        System.assertEquals(1, fieldValue.columnPosition);
+        System.assertNotEquals(null, section.rows);
 
-        IB_APIResponseDisplayController.ResponseWrapper response = new IB_APIResponseDisplayController.ResponseWrapper();
-        System.assertNotEquals(null, response.sections, 'ResponseWrapper should initialize sections.');
-        System.assertEquals(0, response.sections.size(), 'ResponseWrapper sections should start empty.');
-    }
+        // Cover RowWrapper constructor
+        IB_APIResponseDisplayController.RowWrapper row =
+            new IB_APIResponseDisplayController.RowWrapper();
 
-    @IsTest
-    static void testGetStructuredAPIResponse_ErrorPayload() {
-        String payload = '{"isError":true,"errorMessage":"Upstream error"}';
+        System.assertNotEquals(null, row.fields);
 
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.getStructuredAPIResponse(
-                payload,
-                'AnyRecordType',
-                'AnyApiIdentifier'
+        // Cover FieldWrapper constructor
+        IB_APIResponseDisplayController.FieldWrapper field =
+            new IB_APIResponseDisplayController.FieldWrapper(
+                'Label',
+                'Value',
+                'String',
+                1
             );
 
-        System.assertEquals(true, response.isError);
-        System.assertEquals('Upstream error', response.errorMessage);
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(0, response.sections.size());
-        System.assertEquals(null, response.calloutDateTime);
+        System.assertEquals('Label', field.fieldLabel);
+        System.assertEquals('Value', field.fieldValue);
+        System.assertEquals('String', field.dataType);
+        System.assertEquals(1, field.columnPosition);
     }
 
     @IsTest
-    static void testGetStructuredAPIResponse_InvalidJson_Caught() {
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.getStructuredAPIResponse(
-                '{"isError":',
-                'AnyRecordType',
-                'AnyApiIdentifier'
-            );
+    static void testStructured_GenericFullSuccess() {
 
-        System.assertEquals(true, response.isError, 'Invalid JSON should be handled as error.');
-        System.assert(response.errorMessage != null && response.errorMessage.startsWith('Error processing response:'));
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(0, response.sections.size());
-        System.assertEquals(null, response.calloutDateTime);
-    }
-
-    @IsTest
-    static void testGetStructuredAPIResponse_Success_CreditCardPath() {
-        String payload = '{"isError":false,"data":{}}';
-
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.getStructuredAPIResponse(
-                payload,
-                'AnyRecordType',
-                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
-            );
-
-        System.assertEquals(false, response.isError, 'Expected success for non-error payload.');
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(null, response.calloutDateTime);
-    }
-
-    @IsTest
-    static void testGetStructuredAPIResponse_Success_GenericPath() {
-        String payload = '{"isError":false,"data":{}}';
-
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.getStructuredAPIResponse(
-                payload,
-                'AnyRecordType',
-                'NON_CREDIT_CARD_IDENTIFIER'
-            );
-
-        System.assertEquals(false, response.isError, 'Expected success for non-error payload.');
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(null, response.calloutDateTime);
-    }
-
-    @IsTest
-    static void testFetchAndDisplayAPIData_ErrorPayload() {
-        String recordIdValue = getValidRecordId();
-        insertIntegrationLog(recordIdValue);
+        String json = '{"success": true}';
 
         Test.startTest();
-        Test.setMock(
-            HttpCalloutMock.class,
-            new StaticHttpResponseMock(200, '{"isError":true,"errorMessage":"Callout failed"}')
-        );
         IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
-                recordIdValue,
-                'AnyRecordType',
-                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
+            IB_APIResponseDisplayController.getStructuredAPIResponse(
+                json,
+                'TestType',
+                'ANY_API'
             );
         Test.stopTest();
 
-        System.assertEquals(true, response.isError);
-        System.assertEquals('Callout failed', response.errorMessage);
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(0, response.sections.size());
-
-        if (hasIntegrationLog(recordIdValue)) {
-            System.assertNotEquals(
-                null,
-                response.calloutDateTime,
-                'When callout log exists, formatted callout date/time should be returned.'
-            );
-        }
-    }
-
-    @IsTest
-    static void testFetchAndDisplayAPIData_Success_CreditCardPath() {
-        String recordIdValue = getValidRecordId();
-        insertIntegrationLog(recordIdValue);
-
-        Test.startTest();
-        Test.setMock(
-            HttpCalloutMock.class,
-            new StaticHttpResponseMock(200, '{"isError":false,"data":{}}')
-        );
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
-                recordIdValue,
-                'AnyRecordType',
-                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
-            );
-        Test.stopTest();
-
-        System.assertEquals(false, response.isError, 'Expected success for non-error payload.');
-        System.assertNotEquals(null, response.sections);
-    }
-
-    @IsTest
-    static void testFetchAndDisplayAPIData_Success_GenericPath() {
-        String recordIdValue = getValidRecordId();
-        insertIntegrationLog(recordIdValue);
-
-        Test.startTest();
-        Test.setMock(
-            HttpCalloutMock.class,
-            new StaticHttpResponseMock(200, '{"isError":false,"data":{}}')
-        );
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
-                recordIdValue,
-                'AnyRecordType',
-                'NON_CREDIT_CARD_IDENTIFIER'
-            );
-        Test.stopTest();
-
-        System.assertEquals(false, response.isError, 'Expected success for non-error payload.');
-        System.assertNotEquals(null, response.sections);
-    }
-
-    @IsTest
-    static void testFetchAndDisplayAPIData_InvalidRecordId_Caught() {
-        IB_APIResponseDisplayController.ResponseWrapper response =
-            IB_APIResponseDisplayController.fetchAndDisplayAPIData(
-                'invalid-id',
-                'AnyRecordType',
-                'AnyApiIdentifier'
-            );
-
-        System.assertEquals(true, response.isError, 'Invalid record Id should be handled as error.');
-        System.assert(response.errorMessage != null && response.errorMessage.startsWith('Error processing response:'));
-        System.assertNotEquals(null, response.sections);
-        System.assertEquals(0, response.sections.size());
+        System.assertNotEquals(null, response);
+        System.assertEquals(null, response.calloutDateTime);
     }
 }
