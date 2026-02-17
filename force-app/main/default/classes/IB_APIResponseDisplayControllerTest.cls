@@ -22,6 +22,26 @@ private class IB_APIResponseDisplayControllerTest {
         return (String) UserInfo.getUserId();
     }
 
+    private static String getBestRecordIdForFetch() {
+        for (Integration_Message_Log__c log : [
+            SELECT Message_Id__c
+            FROM Integration_Message_Log__c
+            WHERE Message_Id__c != null
+            ORDER BY CreatedDate DESC
+            LIMIT 20
+        ]) {
+            try {
+                Id castableId = (Id) log.Message_Id__c;
+                if (castableId != null) {
+                    return (String) castableId;
+                }
+            } catch (Exception e) {
+                // Ignore non-Id message values and continue.
+            }
+        }
+        return getValidRecordId();
+    }
+
     private static void insertIntegrationLog(String recordIdValue) {
         try {
             insert new Integration_Message_Log__c(
@@ -132,7 +152,7 @@ private class IB_APIResponseDisplayControllerTest {
 
     @IsTest
     static void testFetchAndDisplayAPIData_ErrorPayload() {
-        String recordIdValue = getValidRecordId();
+        String recordIdValue = getBestRecordIdForFetch();
         insertIntegrationLog(recordIdValue);
 
         Test.startTest();
@@ -144,7 +164,7 @@ private class IB_APIResponseDisplayControllerTest {
             IB_APIResponseDisplayController.fetchAndDisplayAPIData(
                 recordIdValue,
                 'AnyRecordType',
-                'AnyApiIdentifier'
+                IB_GlobalConstants.API_IDENTIFIER_CREDIT_CARD
             );
         Test.stopTest();
 
@@ -164,7 +184,7 @@ private class IB_APIResponseDisplayControllerTest {
 
     @IsTest
     static void testFetchAndDisplayAPIData_Success_CreditCardPath() {
-        String recordIdValue = getValidRecordId();
+        String recordIdValue = getBestRecordIdForFetch();
         insertIntegrationLog(recordIdValue);
 
         Test.startTest();
@@ -186,7 +206,7 @@ private class IB_APIResponseDisplayControllerTest {
 
     @IsTest
     static void testFetchAndDisplayAPIData_Success_GenericPath() {
-        String recordIdValue = getValidRecordId();
+        String recordIdValue = getBestRecordIdForFetch();
         insertIntegrationLog(recordIdValue);
 
         Test.startTest();
